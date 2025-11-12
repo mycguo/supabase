@@ -1,4 +1,4 @@
-import { Pipeline, PretrainedOptions, Tensor } from '@xenova/transformers';
+import type { Pipeline, PretrainedOptions, Tensor as TensorType } from '@xenova/transformers';
 import { useEffect, useState } from 'react';
 import {
   InitEventData,
@@ -83,11 +83,13 @@ export function usePipeline(
 
     const callbacks = new Map<number, (data: PipeReturnType) => void>();
 
-    const onMessageReceived = (e: MessageEvent<OutgoingEventData>) => {
+    const onMessageReceived = async (e: MessageEvent<OutgoingEventData>) => {
       switch (e.data.type) {
         case 'result':
           const { id, data: serializedData } = e.data;
           const { type, data, dims } = serializedData;
+          // Dynamically import Tensor to avoid server-side evaluation
+          const { Tensor } = await import('@xenova/transformers');
           const output = new Tensor(type, data, dims);
           const callback = callbacks.get(id);
 
