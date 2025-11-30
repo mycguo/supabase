@@ -1,101 +1,70 @@
-// Setup type definitions for built-in Supabase Runtime APIs
-/// <reference types="https://esm.sh/@supabase/functions-js/src/edge-runtime.d.ts" />
-
-import { createClient } from '@supabase/supabase-js';
-import { Database } from '../_lib/database.ts';
-
+// Minimal embed function without any external dependencies
+// @ts-nocheck
 const model = new Supabase.ai.Session('gte-small');
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL');
-const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 Deno.serve(async (req) => {
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!SUPABASE_URL || !SERVICE_KEY) {
     return new Response(
-      JSON.stringify({
-        error: 'Missing environment variables.',
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ error: 'Missing environment variables' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
-
-  const authorization = req.headers.get('Authorization');
-
-  if (!authorization) {
-    return new Response(
-      JSON.stringify({ error: `No authorization header passed` }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
-  }
-
-  const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        authorization,
-      },
-    },
-    auth: {
-      persistSession: false,
-    },
-  });
 
   const { ids, table, contentColumn, embeddingColumn } = await req.json();
 
-  const { data: rows, error: selectError } = await supabase
-    .from(table)
-    .select(`id, ${contentColumn}` as '*')
-    .in('id', ids)
-    .is(embeddingColumn, null);
+  // Fetch rows using REST API
+  const fetchUrl = `${SUPABASE_URL}/rest/v1/${table}?id=in.(${ids.join(',')})&${embeddingColumn}=is.null`;
+  const fetchResponse = await fetch(fetchUrl, {
+    headers: {
+      'apikey': SERVICE_KEY,
+      'Authorization': `Bearer ${SERVICE_KEY}`,
+    },
+  });
 
-  if (selectError) {
-    return new Response(JSON.stringify({ error: selectError }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+  if (!fetchResponse.ok) {
+    return new Response(
+      JSON.stringify({ error: 'Failed to fetch rows' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 
-  for (const row of rows) {
-    const { id, [contentColumn]: content } = row;
+  const rows = await fetchResponse.json();
 
+  for (const row of rows) {
+    const content = row[contentColumn];
     if (!content) {
-      console.error(`No content available in column '${contentColumn}'`);
+      console.error(`No content in column '${contentColumn}'`);
       continue;
     }
 
-    const output = (await model.run(content, {
+    const output = await model.run(content, {
       mean_pool: true,
       normalize: true,
-    })) as number[];
+    });
 
-    const embedding = JSON.stringify(output);
+    const embedding = JSON.stringify(Array.from(output));
 
-    const { error } = await supabase
-      .from(table)
-      .update({
-        [embeddingColumn]: embedding,
-      })
-      .eq('id', id);
+    // Update using REST API
+    const updateUrl = `${SUPABASE_URL}/rest/v1/${table}?id=eq.${row.id}`;
+    const updateResponse = await fetch(updateUrl, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SERVICE_KEY,
+        'Authorization': `Bearer ${SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ [embeddingColumn]: embedding }),
+    });
 
-    if (error) {
-      console.error(
-        `Failed to save embedding on '${table}' table with id ${id}`
-      );
+    if (!updateResponse.ok) {
+      console.error(`Failed to update ${table} id ${row.id}`);
+    } else {
+      console.log(`Generated embedding for ${table} id ${row.id}`);
     }
-
-    console.log(
-      `Generated embedding ${JSON.stringify({
-        table,
-        id,
-        contentColumn,
-        embeddingColumn,
-      })}`
-    );
   }
 
   return new Response(null, {

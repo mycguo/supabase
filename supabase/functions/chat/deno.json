@@ -1,0 +1,8 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.21.0",
+    "openai": "https://esm.sh/openai@4.10.0",
+    "common-tags": "https://esm.sh/common-tags@1.8.2",
+    "ai": "https://esm.sh/ai@2.2.13"
+  }
+}

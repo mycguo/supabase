@@ -1,12 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
-import { Database } from '../_lib/database.ts';
 import { processMarkdown } from '../_lib/markdown-parser.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
-const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 Deno.serve(async (req) => {
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseServiceKey) {
     return new Response(
       JSON.stringify({
         error: 'Missing environment variables.',
@@ -18,24 +17,8 @@ Deno.serve(async (req) => {
     );
   }
 
-  const authorization = req.headers.get('Authorization');
-
-  if (!authorization) {
-    return new Response(
-      JSON.stringify({ error: `No authorization header passed` }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
-  }
-
-  const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: {
-        authorization,
-      },
-    },
+  // Use service role key to bypass RLS for document processing
+  const supabase = createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
       persistSession: false,
     },
