@@ -19,6 +19,18 @@ export default function ChatPage() {
   const { messages, input, handleInputChange, handleSubmit, isLoading } =
     useChat({
       api: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/chat`,
+      onError: (error: Error) => {
+        console.error('Chat error:', error);
+      },
+      onResponse: (response: Response) => {
+        console.log('Chat response status:', response.status);
+        if (!response.ok) {
+          console.error('Chat response error:', response.statusText);
+        }
+      },
+      onFinish: (message: any) => {
+        console.log('Chat finished:', message);
+      },
     });
 
   const isReady = !!generateEmbedding;
@@ -27,7 +39,7 @@ export default function ChatPage() {
     <div className="max-w-6xl flex flex-col items-center w-full h-full">
       <div className="flex flex-col w-full gap-6 grow my-2 sm:my-10 p-4 sm:p-8 sm:border rounded-sm overflow-y-auto">
         <div className="border-slate-400 rounded-lg flex flex-col justify-start gap-4 pr-2 grow overflow-y-scroll">
-          {messages.map(({ id, role, content }) => (
+          {messages.map(({ id, role, content }: { id: string; role: string; content: string }) => (
             <div
               key={id}
               className={cn(
@@ -63,14 +75,19 @@ export default function ChatPage() {
           className="flex items-center space-x-2 gap-2"
           onSubmit={async (e) => {
             e.preventDefault();
+            console.log('Submitting chat...');
+
             if (!generateEmbedding) {
+              console.error('Embedding model not ready');
               throw new Error('Unable to generate embeddings');
             }
 
+            console.log('Generating embedding...');
             const output = await generateEmbedding(input, {
               pooling: 'mean',
               normalize: true,
             });
+            console.log('Embedding generated');
 
             const embedding = JSON.stringify(Array.from(output.data));
 
@@ -79,9 +96,11 @@ export default function ChatPage() {
             } = await supabase.auth.getSession();
 
             if (!session) {
+              console.error('No session found');
               return;
             }
 
+            console.log('Sending request to API...');
             handleSubmit(e, {
               options: {
                 headers: {

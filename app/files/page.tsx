@@ -38,22 +38,25 @@ export default function FilesPage() {
             const selectedFile = e.target.files?.[0];
 
             if (selectedFile) {
-              const { error } = await supabase.storage
+              console.log('File selected:', selectedFile.name, 'Size:', selectedFile.size);
+              
+              const filePath = `${crypto.randomUUID()}/${selectedFile.name}`;
+              console.log('Uploading to path:', filePath);
+
+              const { data, error } = await supabase.storage
                 .from('files')
-                .upload(
-                  `${crypto.randomUUID()}/${selectedFile.name}`,
-                  selectedFile
-                );
+                .upload(filePath, selectedFile);
 
               if (error) {
+                console.error('Upload error:', error);
                 toast({
                   variant: 'destructive',
-                  description:
-                    'There was an error uploading the file. Please try again.',
+                  description: `Error uploading file: ${error.message}`,
                 });
                 return;
               }
 
+              console.log('Upload successful:', data);
               router.push('/chat');
             }
           }}
