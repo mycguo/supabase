@@ -1,4 +1,4 @@
-import type { Pipeline, PretrainedOptions, Tensor as TensorType } from '@xenova/transformers';
+import { Pipeline, pipeline, PretrainedOptions, Tensor as TensorType } from '@xenova/transformers';
 import { useEffect, useState } from 'react';
 import {
   InitEventData,
@@ -21,7 +21,7 @@ export type PipeFunction = (...args: PipeParameters) => Promise<PipeReturnType>;
  * otherwise the hook will continuously rebuild the pipeline.
  */
 export function usePipeline(
-  task: string,
+  task: Parameters<typeof pipeline>[0],
   model?: string,
   options?: PretrainedOptions
 ) {

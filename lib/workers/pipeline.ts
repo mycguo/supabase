@@ -68,7 +68,7 @@ class PipelineSingleton {
   static instance?: Pipeline;
 
   static async init(...args: Parameters<typeof pipeline>) {
-    this.instance = await pipeline(...args);
+    this.instance = await pipeline(...args) as unknown as Pipeline;
   }
 }
 

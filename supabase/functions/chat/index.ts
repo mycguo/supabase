@@ -1,7 +1,7 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.21.0';
-import { OpenAIStream, StreamingTextResponse } from 'https://esm.sh/ai@2.2.13';
-import { codeBlock } from 'https://esm.sh/common-tags@1.8.2';
-import OpenAI from 'https://esm.sh/openai@4.10.0';
+import { createClient } from '@supabase/supabase-js';
+import { OpenAIStream, StreamingTextResponse } from 'ai';
+import { codeBlock } from 'common-tags';
+import OpenAI from 'openai';
 import { Database } from '../_lib/database.ts';
 
 // These are automatically injected
@@ -50,21 +50,11 @@ Deno.serve(async (req) => {
 
   const authorization = req.headers.get('Authorization');
 
-  if (!authorization) {
-    return new Response(
-      JSON.stringify({ error: `No authorization header passed` }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
-  }
-
-  const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     global: {
-      headers: {
+      headers: authorization ? {
         authorization,
-      },
+      } : {},
     },
     auth: {
       persistSession: false,
@@ -85,7 +75,7 @@ Deno.serve(async (req) => {
   const { data: documents, error: matchError } = await supabase
     .rpc('match_document_sections', {
       embedding: embeddingArray,
-      match_threshold: 0.5,
+      match_threshold: 0.1,
     })
     .select('content')
     .limit(5);
@@ -139,14 +129,33 @@ Deno.serve(async (req) => {
   // Add conversation history
   completionMessages.push(...messages);
 
-  const completionStream = await openai.chat.completions.create({
-    model: 'gpt-3.5-turbo-0125',
-    messages: completionMessages,
-    max_tokens: 1024,
-    temperature: 0,
-    stream: true,
-  });
+  console.log('Sending request to OpenAI...');
+  try {
+    const completionStream = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo-0125',
+      messages: completionMessages,
+      max_tokens: 1024,
+      temperature: 0,
+      stream: true,
+    });
+    console.log('OpenAI request successful, creating stream...');
 
-  const stream = OpenAIStream(completionStream);
-  return new StreamingTextResponse(stream, { headers: corsHeaders });
+    const stream = OpenAIStream(completionStream);
+
+    // Create a TransformStream to log chunks
+    const loggingStream = new TransformStream({
+      transform(chunk, controller) {
+        console.log('Stream chunk:', new TextDecoder().decode(chunk));
+        controller.enqueue(chunk);
+      },
+    });
+
+    return new StreamingTextResponse(stream.pipeThrough(loggingStream), { headers: corsHeaders });
+  } catch (error) {
+    console.error('OpenAI error:', error);
+    return new Response(
+      JSON.stringify({ error: 'Error calling OpenAI: ' + (error as any).message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 });

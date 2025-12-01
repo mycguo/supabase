@@ -24,7 +24,7 @@ export default function FilesPage() {
       throw error;
     }
 
-    return data;
+    return data as Database['public']['Views']['documents_with_storage_path']['Row'][] | null;
   });
 
   return (
@@ -39,7 +39,7 @@ export default function FilesPage() {
 
             if (selectedFile) {
               console.log('File selected:', selectedFile.name, 'Size:', selectedFile.size);
-              
+
               const filePath = `${crypto.randomUUID()}/${selectedFile.name}`;
               console.log('Uploading to path:', filePath);
 
