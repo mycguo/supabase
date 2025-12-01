@@ -7,11 +7,13 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 
+type DocumentRow = Database['public']['Views']['documents_with_storage_path']['Row'];
+
 export default function FilesPage() {
   const supabase = createClientComponentClient<Database>();
   const router = useRouter();
 
-  const { data: documents } = useQuery(['files'], async () => {
+  const { data: documents } = useQuery<DocumentRow[] | null>(['files'], async () => {
     const { data, error } = await supabase
       .from('documents_with_storage_path')
       .select();
@@ -24,7 +26,7 @@ export default function FilesPage() {
       throw error;
     }
 
-    return data as Database['public']['Views']['documents_with_storage_path']['Row'][] | null;
+    return data as DocumentRow[] | null;
   });
 
   return (
